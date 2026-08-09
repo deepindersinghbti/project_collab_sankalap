@@ -12,7 +12,6 @@ import { extractYouTubeVideoId } from "@/lib/youtube";
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const session = await getServerSession(authOptions);
     await dbConnect();
 
     const org = await Org.findOne({ slug, status: "active" })
@@ -22,19 +21,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
 
     if (!org) {
       return NextResponse.json({ message: "Organization not found" }, { status: 404 });
-    }
-
-    let canViewMissionVideo = false;
-    if (session) {
-      const userId = (session.user as any).id;
-      const platformRole = (session.user as any).role;
-
-      if (isPlatformAdminOverride(platformRole)) {
-        canViewMissionVideo = true;
-      } else {
-        const membership = await OrgMember.findOne({ userId, orgId: (org as any)._id, status: "active" }).select("role").lean();
-        canViewMissionVideo = canManageOrg(platformRole, (membership as any)?.role);
-      }
     }
 
     // Increment view count (fire-and-forget)
@@ -55,13 +41,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       .limit(12)
       .lean();
 
-    const responseOrg = JSON.parse(JSON.stringify(org));
-    if (!canViewMissionVideo) {
-      delete responseOrg.missionVideoId;
-    }
-
     return NextResponse.json({
-      org:      responseOrg,
+      org:      JSON.parse(JSON.stringify(org)),
       members:  JSON.parse(JSON.stringify(members)),
       projects: JSON.parse(JSON.stringify(projects)),
     });

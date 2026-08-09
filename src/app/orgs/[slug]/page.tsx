@@ -187,7 +187,7 @@ export default function OrgPage() {
               </p>
             </motion.section>
 
-            {isAdmin && org.missionVideoId && (
+            {org.missionVideoId && (
               <motion.section
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}

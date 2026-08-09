@@ -239,7 +239,7 @@ export default function OrgAdminSettingsPage() {
                   className={inputCls}
                 />
                 <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground dark:text-white/40">
-                  Paste an unlisted YouTube video link. The video is hosted by YouTube and is only shown to organization admins in Syncro.
+                  Paste an unlisted YouTube video link. The video is hosted by YouTube and is visible to anyone who can view this organization's page.
                 </p>
                 {form.missionVideoUrl.trim() && !missionVideoId && (
                   <p className="mt-1.5 text-[11px] text-error dark:text-red-400">Enter a valid YouTube watch, short, or embed URL.</p>
