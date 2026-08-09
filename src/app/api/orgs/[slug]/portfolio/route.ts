@@ -59,7 +59,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ slug: st
 
     const body = await req.json();
     const ALLOWED = [
-      "isPublished", "themeId", "accent", "accent2", "bgOverride", "threeOverride",
+      "isPublished", "mode", "enterpriseTemplate", "navigationStyle", "enterprisePageMode", "enterprisePages", "enterpriseBrand", "enterpriseFooter",
+      "themeId", "accent", "accent2", "bgOverride", "threeOverride",
       "card", "sectionAnim", "projectCardStyle", "projectCardAnim", "sections", "seo",
     ];
 
@@ -70,7 +71,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ slug: st
 
     // Handle published snapshot
     if (body.publish === true) {
-      update.published      = { ...update, sections: body.sections };
+      update.isPublished    = true;
+      update.published      = { ...update, isPublished: true, sections: body.sections || [] };
       update.lastPublishedAt = new Date();
       // Also enable portfolio on the org
       await Org.updateOne({ _id: org._id }, { $set: { portfolioEnabled: true } });

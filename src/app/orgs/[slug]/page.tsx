@@ -2,208 +2,74 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
 import {
-  Users, FolderOpen, Shield, Loader2,
-  AlertCircle, Edit2, LayoutDashboard
+  AlertCircle, ArrowLeft, CalendarRange, CheckCircle2, Edit2, ExternalLink,
+  FolderKanban, FolderOpen, LayoutDashboard, Loader2, Shield, Users,
 } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { useOrg } from "@/context/OrgContext";
 import OrgHero from "@/components/org/OrgHero";
-import TrustScoreCard from "@/components/org/TrustScoreCard";
-import MemberGrid from "@/components/org/MemberGrid";
 import JoinButton from "@/components/org/JoinButton";
-import OrgPortfolioRenderer from "@/components/portfolio/OrgPortfolioRenderer";
 import AppLayoutClient from "@/components/layout/AppLayoutClient";
+import { ORG_ROLE_LABELS } from "@/lib/org-permissions";
 import { buildYouTubeEmbedUrl } from "@/lib/youtube";
 
 export default function OrgPage() {
   const { slug } = useParams() as { slug: string };
-  const { data: session } = useSession();
   const { org, members, loading, error, myMembership, refresh, isAdmin } = useOrg();
-  
-  const [portfolioData, setPortfolioData] = useState<any>(null);
-  const [loadingPortfolio, setLoadingPortfolio] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
-
-  const userId = (session?.user as any)?.id;
-  const platformRole = (session?.user as any)?.role;
+  const [seasons, setSeasons] = useState<any[]>([]);
 
   useEffect(() => {
-    if (org) {
-      fetchProjects();
-      if (org.portfolioEnabled) {
-        fetchPortfolio();
-      }
-    }
-  }, [org]);
+    if (!org) return;
+    Promise.all([
+      fetch(`/api/orgs/${slug}/projects`).then((response) => response.ok ? response.json() : { projects: [] }),
+      fetch(`/api/orgs/${slug}/seasons`).then((response) => response.ok ? response.json() : { seasons: [] }),
+    ]).then(([projectData, seasonData]) => {
+      setProjects(projectData.projects || []);
+      setSeasons(seasonData.seasons || []);
+    }).catch(() => { setProjects([]); setSeasons([]); });
+  }, [org, slug]);
 
-  const fetchProjects = async () => {
-    try {
-      const res = await fetch(`/api/orgs/${slug}/projects`);
-      if (res.ok) {
-        const data = await res.json();
-        setProjects(data.projects || []);
-      }
-    } catch (err) {
-      console.error("Failed to fetch org projects", err);
-    }
-  };
+  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="animate-spin text-primary" size={26} /></div>;
+  if (error || !org) return <div className="min-h-screen bg-background flex items-center justify-center p-6"><div className="max-w-md text-center"><AlertCircle size={40} className="mx-auto text-error" /><h1 className="mt-4 text-xl font-bold">Organization not found</h1><p className="mt-2 text-sm text-muted-foreground">{error || "This organization is unavailable."}</p><a href="/orgs" className="mt-4 inline-block text-sm font-semibold text-primary">Back to organizations</a></div></div>;
 
-  const fetchPortfolio = async () => {
-    setLoadingPortfolio(true);
-    try {
-      const res = await fetch(`/api/orgs/${slug}/portfolio`);
-      if (res.ok) {
-        const data = await res.json();
-        setPortfolioData(data.portfolio);
-      }
-    } catch (err) {
-      console.error("Failed to fetch org portfolio", err);
-    } finally {
-      setLoadingPortfolio(false);
-    }
-  };
+  const completionRate = Math.round(org.trustScore?.completionRate || 0);
+  const metrics = [
+    { label: "Members", value: org.stats?.memberCount ?? members.length },
+    { label: "Active projects", value: org.stats?.projectCount ?? projects.length },
+    { label: "Completed", value: org.stats?.completedProjectCount ?? 0 },
+    { label: "Completion", value: `${completionRate}%` },
+  ];
 
-  if (loading || (org?.portfolioEnabled && loadingPortfolio)) {
-    return (
-      <div className="min-h-screen bg-background dark:bg-[#0a0a0f] text-foreground dark:text-white flex items-center justify-center">
-        <Loader2 className="animate-spin text-primary dark:text-indigo-400" size={28} />
-      </div>
-    );
-  }
-
-  if (error || !org) {
-    return (
-      <div className="min-h-screen bg-background dark:bg-[#0a0a0f] text-foreground dark:text-white flex items-center justify-center p-4">
-        <div className="max-w-md text-center space-y-4">
-          <AlertCircle size={48} className="text-error dark:text-red-400 mx-auto" />
-          <h2 className="text-xl font-bold">Organization Not Found</h2>
-          <p className="text-sm text-muted-foreground dark:text-white/50">{error || "This organization could not be loaded or is pending approval."}</p>
-          <a href="/orgs" className="inline-block text-primary dark:text-indigo-400 text-sm hover:underline">
-            Back to Directory
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  // ── MODE 1: Portfolio Mode ───────────────────────────────────────
-  if (org.portfolioEnabled && portfolioData) {
-    return (
-      <div className="min-h-screen relative bg-background dark:bg-[#060608]">
-        {/* Floating Admin Controls for Org Admins */}
-        {isAdmin && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 p-1.5 rounded-2xl bg-card/60 dark:bg-black/60 backdrop-blur-md border border-border shadow-2xl">
-            <a
-              href={`/orgs/${slug}/admin`}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover dark:bg-indigo-500 dark:hover:bg-indigo-400 text-primary-foreground dark:text-white font-semibold text-xs transition-all"
-            >
-              <LayoutDashboard size={12} /> Console
-            </a>
-            <a
-              href={`/orgs/${slug}/admin/portfolio`}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-muted-strong dark:bg-white/10 hover:bg-muted-bg dark:hover:bg-white/15 text-foreground dark:text-white/80 text-xs font-medium transition-all"
-            >
-              <Edit2 size={12} /> Edit Page
-            </a>
-          </div>
-        )}
-        <OrgPortfolioRenderer
-          org={org}
-          portfolio={portfolioData}
-          members={members}
-          projects={projects}
-        />
-      </div>
-    );
-  }
-
-  // ── MODE 2: Default Mode ──────────────────────────────────────────
   return (
-    <AppLayoutClient>
-      <div className="text-foreground dark:text-white pb-16">
-        {/* Top Header Controls */}
-        <div className="flex items-center justify-between pb-4 mb-6 border-b border-border dark:border-white/8">
-          <a href="/orgs" className="text-muted-foreground dark:text-white/40 hover:text-primary dark:hover:text-white/80 transition-colors text-sm font-medium">
-            ← Organizations
-          </a>
-
-          {isAdmin && (
-            <div className="flex items-center gap-2">
-              <a
-                href={`/orgs/${slug}/admin`}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card dark:bg-white/5 border border-border hover:bg-muted-strong dark:hover:bg-white/10 text-foreground dark:text-white/80 font-semibold text-xs transition-all"
-              >
-                <LayoutDashboard size={12} /> Admin Console
-              </a>
-              <a
-                href={`/orgs/${slug}/admin/portfolio`}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-linear-to-r from-primary to-primary-hover dark:from-indigo-500 dark:to-purple-500 text-primary-foreground dark:text-white font-semibold text-xs transition-all hover:brightness-110 shadow-sm"
-              >
-                <Edit2 size={12} /> Design Page
-              </a>
+    <AppLayoutClient wide hideRightPanel>
+      <div className="mx-auto w-full max-w-[1240px] pb-12 text-foreground">
+        <header className="mb-4 flex flex-col gap-3 border-b border-border pb-3">
+          <div className="flex items-center justify-between gap-4">
+            <a href="/orgs" className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"><ArrowLeft size={14} /> Organizations</a>
+            <div className="flex flex-wrap justify-end gap-2">
+              {org.portfolioEnabled && <Action href={`/orgs/${slug}/portfolio`} icon={<ExternalLink size={13} />}>Portfolio</Action>}
+              {isAdmin && <><Action href={`/orgs/${slug}/admin`} icon={<LayoutDashboard size={13} />}>Admin console</Action><Action href={`/orgs/${slug}/admin/portfolio`} icon={<Edit2 size={13} />} primary>{org.portfolioEnabled ? "Edit portfolio" : "Create portfolio"}</Action></>}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+          <nav className="flex gap-5 overflow-x-auto text-xs font-medium text-muted-foreground"><a href={`/orgs/${slug}`} className="border-b-2 border-primary pb-2 text-foreground">Overview</a><a href="#projects" className="pb-2 hover:text-foreground">Projects</a><a href="#seasons" className="pb-2 hover:text-foreground">Seasons</a><a href="#members" className="pb-2 hover:text-foreground">Members</a></nav>
+        </header>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 mt-6 space-y-6">
-        {/* Hero Card */}
-        <OrgHero
-          org={org}
-          actions={
-            <JoinButton
-              slug={slug}
-              orgType={org.orgType}
-              visibility={org.visibility}
-              orgName={org.name}
-              initial={myMembership}
-              onJoined={refresh}
-            />
-          }
-        />
+        <OrgHero org={org} actions={<JoinButton slug={slug} orgType={org.orgType} visibility={org.visibility} orgName={org.name} initial={myMembership} onJoined={refresh} />} />
 
-        {/* Content Body Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Main Content (2 cols) */}
-          <div className="md:col-span-2 space-y-6">
-            {/* Charter / Mission */}
-            <motion.section
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="relative overflow-hidden p-6 rounded-2xl border border-border bg-card dark:bg-white/5 backdrop-blur-sm space-y-4"
-            >
-              <div className="pointer-events-none absolute -top-16 -right-16 w-40 h-40 rounded-full bg-gradient-to-br from-primary/10 to-tertiary/10 dark:from-indigo-500/10 dark:to-purple-500/10 blur-2xl" />
-              <h2 className="relative text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
-                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-linear-to-br from-primary to-tertiary dark:from-indigo-400 dark:to-purple-400">
-                  <Shield size={14} className="text-white" />
-                </span>
-                Our Mission
-              </h2>
-              <p className="relative text-muted-foreground dark:text-white/70 text-sm leading-relaxed whitespace-pre-wrap">
-                {org.charter || "No mission statement has been defined yet."}
-              </p>
-            </motion.section>
+        <section className="mt-4 grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card shadow-sm md:grid-cols-4">
+          {metrics.map((metric, index) => <div key={metric.label} className={`px-5 py-4 ${index ? "border-l border-border" : ""} ${index > 1 ? "border-t md:border-t-0" : ""}`}><div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</div><div className="mt-1 text-2xl font-semibold tracking-tight">{metric.value}</div></div>)}
+        </section>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <main className="space-y-4">
+            <Section icon={<Shield size={16} />} title="Mission">
+              <p className="text-sm leading-6 text-muted-foreground whitespace-pre-wrap">{org.charter || "The organization has not published its mission statement yet."}</p>
+            </Section>
 
             {org.missionVideoId && (
-              <motion.section
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="relative overflow-hidden p-6 rounded-2xl border border-border bg-card dark:bg-white/5 backdrop-blur-sm space-y-4"
-              >
-                <div className="pointer-events-none absolute -top-16 -right-16 w-40 h-40 rounded-full bg-linear-to-br from-primary/10 to-tertiary/10 dark:from-indigo-500/10 dark:to-purple-500/10 blur-2xl" />
-                <div className="relative flex items-center justify-between gap-3">
-                  <h2 className="text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
-                    <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-linear-to-br from-primary to-tertiary dark:from-indigo-400 dark:to-purple-400">
-                      <LayoutDashboard size={14} className="text-white" />
-                    </span>
-                    Mission Video
-                  </h2>
-                </div>
-                <div className="relative overflow-hidden rounded-xl border border-border dark:border-white/8 bg-black/10" style={{ aspectRatio: "16 / 9" }}>
+              <Section icon={<LayoutDashboard size={16} />} title="Mission video">
+                <div className="relative overflow-hidden rounded-xl border border-border bg-black/10" style={{ aspectRatio: "16 / 9" }}>
                   <iframe
                     title={`${org.name} mission video`}
                     src={buildYouTubeEmbedUrl(org.missionVideoId)}
@@ -214,90 +80,35 @@ export default function OrgPage() {
                     referrerPolicy="strict-origin-when-cross-origin"
                   />
                 </div>
-              </motion.section>
+              </Section>
             )}
 
-            {/* Showcase Projects */}
-            <motion.section
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="relative overflow-hidden p-6 rounded-2xl border border-border bg-card dark:bg-white/5 backdrop-blur-sm space-y-4"
-            >
-              <div className="pointer-events-none absolute -top-16 -left-16 w-40 h-40 rounded-full bg-linear-to-br from-tertiary/10 to-primary/10 dark:from-purple-500/10 dark:to-indigo-500/10 blur-2xl" />
-              <div className="relative flex items-center justify-between">
-                <h2 className="text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
-                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-linear-to-br from-primary to-tertiary dark:from-indigo-400 dark:to-purple-400">
-                    <FolderOpen size={14} className="text-white" />
-                  </span>
-                  Projects Showcase
-                </h2>
-                <span className="text-xs text-muted-foreground dark:text-white/40">{projects.length} completed projects</span>
-              </div>
+            <Section id="projects" icon={<FolderKanban size={16} />} title="Projects" meta={`${projects.length} total`}>
+              {projects.length ? <div className="divide-y divide-border">{projects.slice(0, 6).map((project) => <a key={project._id} href={`/projects/${project._id}`} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0 group"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted-bg text-muted-foreground"><FolderOpen size={17} /></div><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold group-hover:text-primary">{project.title}</h3><p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{project.description || "No description provided"}</p></div><span className="rounded-md border border-border px-2 py-1 text-[10px] font-medium capitalize text-muted-foreground">{project.status}</span></a>)}</div> : <CompactEmpty icon={<FolderOpen size={18} />} title="No projects yet" detail="Projects launched by this organization will appear here." />}
+            </Section>
 
-              {projects.length === 0 ? (
-                <div className="text-center py-12 border border-dashed border-border rounded-xl">
-                  <FolderOpen className="mx-auto text-muted-foreground dark:text-white/20 mb-2" size={24} />
-                  <p className="text-xs text-muted-foreground dark:text-white/40">No completed projects to showcase yet</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {projects.map((proj) => (
-                    <a
-                      key={proj._id}
-                      href={`/showcase/${proj._id}`}
-                      className="group p-4 rounded-xl border border-border dark:border-white/8 bg-card dark:bg-white/4 hover:border-primary/40 dark:hover:border-white/20 hover:shadow-md hover:bg-muted-bg dark:hover:bg-white/8 transition-all flex flex-col gap-2"
-                    >
-                      {proj.coverImage && (
-                        <div className="h-32 rounded-lg overflow-hidden relative bg-black/20 dark:bg-black/40">
-                          <img
-                            src={proj.coverImage}
-                            alt={proj.title}
-                            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                          />
-                        </div>
-                      )}
-                      <div>
-                        <h4 className="font-semibold text-sm text-foreground dark:text-white group-hover:text-primary dark:group-hover:text-indigo-300 transition-colors">
-                          {proj.title}
-                        </h4>
-                        {proj.description && (
-                          <p className="text-xs text-muted-foreground dark:text-white/50 line-clamp-2 mt-1 leading-normal">
-                            {proj.description}
-                          </p>
-                        )}
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              )}
-            </motion.section>
-          </div>
+            <Section id="seasons" icon={<CalendarRange size={16} />} title="Development seasons" meta={<a href="/seasons" className="font-medium text-primary">View all</a>}>
+              {seasons.length ? <div className="divide-y divide-border">{seasons.map((entry: any) => { const season = entry.seasonId; return <a key={entry._id} href={`/seasons/${season?.slug}`} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0"><div className="h-2.5 w-2.5 rounded-full bg-primary" /><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold">{season?.name}</h3><p className="text-xs text-muted-foreground">{season?.tagline || "Development season"}</p></div><span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{String(season?.status || "").replaceAll("_", " ")}</span></a>; })}</div> : <CompactEmpty icon={<CalendarRange size={18} />} title="No active season" detail="Season participation will appear here when announced." />}
+            </Section>
+          </main>
 
-          {/* Sidebar (1 col) */}
-          <div className="space-y-6">
-            {/* Trust Score & Stats */}
-            <TrustScoreCard org={org} />
+          <aside className="space-y-4">
+            <Section id="members" icon={<Users size={16} />} title="Members" meta={`${members.length}`}>
+              <div className="divide-y divide-border">{members.slice(0, 8).map((member: any, index: number) => { const user = member.userId || {}; const initials = (user.name || "?").split(" ").map((part: string) => part[0]).slice(0, 2).join("").toUpperCase(); return <div key={member._id || index} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"><div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-xs font-semibold text-white dark:bg-slate-200 dark:text-slate-900">{user.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : initials}</div><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{user.name || "Member"}</div><div className="truncate text-[11px] text-muted-foreground">{user.handle ? `@${user.handle}` : "Organization member"}</div></div><span className="rounded-md bg-muted-bg px-2 py-1 text-[10px] font-medium text-muted-foreground">{ORG_ROLE_LABELS[member.role as keyof typeof ORG_ROLE_LABELS] || member.role}</span></div>; })}</div>
+              {!members.length && <CompactEmpty icon={<Users size={18} />} title="No members" detail="Members will appear here." />}
+            </Section>
 
-            {/* Member Spotlight */}
-            <motion.section
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="p-6 rounded-2xl border border-border bg-card dark:bg-white/5 backdrop-blur-sm space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-foreground dark:text-white flex items-center gap-2">
-                  <Users size={14} className="text-primary dark:text-indigo-400" /> Member Grid
-                </h2>
-                <span className="text-xs text-muted-foreground dark:text-white/40">{members.length} members</span>
-              </div>
-
-              <MemberGrid members={members} maxVisible={12} />
-            </motion.section>
-          </div>
+            <Section icon={<CheckCircle2 size={16} />} title="Verification">
+              <div className="space-y-3 text-sm"><VerificationRow label="Founder verified" active={!!org.trustScore?.founderVerified} /><VerificationRow label="Organization verified" active={!!org.trustScore?.kycVerified} /><VerificationRow label="Public portfolio" active={!!org.portfolioEnabled} /></div>
+            </Section>
+          </aside>
         </div>
       </div>
     </AppLayoutClient>
   );
 }
+
+function Action({ href, icon, children, primary = false }: { href: string; icon: React.ReactNode; children: React.ReactNode; primary?: boolean }) { return <a href={href} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${primary ? "border-primary bg-primary text-primary-foreground hover:bg-primary-hover" : "border-border bg-card hover:bg-muted-bg"}`}>{icon}{children}</a>; }
+function Section({ id, icon, title, meta, children }: { id?: string; icon: React.ReactNode; title: string; meta?: React.ReactNode; children: React.ReactNode }) { return <section id={id} className="scroll-mt-24 rounded-xl border border-border bg-card shadow-sm"><header className="flex items-center justify-between border-b border-border px-5 py-3.5"><div className="flex items-center gap-2 text-sm font-semibold">{icon}{title}</div>{meta && <div className="text-xs text-muted-foreground">{meta}</div>}</header><div className="p-5">{children}</div></section>; }
+function CompactEmpty({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) { return <div className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-muted-bg/40 px-4 py-4 text-left"><span className="text-muted-foreground">{icon}</span><div><div className="text-sm font-medium">{title}</div><div className="mt-0.5 text-xs text-muted-foreground">{detail}</div></div></div>; }
+function VerificationRow({ label, active }: { label: string; active: boolean }) { return <div className="flex items-center justify-between"><span className="text-muted-foreground">{label}</span><span className={`text-xs font-medium ${active ? "text-emerald-600" : "text-muted-foreground"}`}>{active ? "Verified" : "Not verified"}</span></div>; }
