@@ -5,14 +5,14 @@ import dbConnect from "@/lib/mongodb";
 import Org from "@/models/Org";
 import OrgMember from "@/models/OrgMember";
 import Project from "@/models/Project";
-import User from "@/models/User";
 import { canManageOrg, isPlatformAdminOverride } from "@/lib/org-permissions";
-import { isPlatformReviewer } from "@/lib/roles";
+import { extractYouTubeVideoId } from "@/lib/youtube";
 
 /** GET /api/orgs/[slug] — public org profile */
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
+    const session = await getServerSession(authOptions);
     await dbConnect();
 
     const org = await Org.findOne({ slug, status: "active" })
@@ -22,6 +22,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
 
     if (!org) {
       return NextResponse.json({ message: "Organization not found" }, { status: 404 });
+    }
+
+    let canViewMissionVideo = false;
+    if (session) {
+      const userId = (session.user as any).id;
+      const platformRole = (session.user as any).role;
+
+      if (isPlatformAdminOverride(platformRole)) {
+        canViewMissionVideo = true;
+      } else {
+        const membership = await OrgMember.findOne({ userId, orgId: (org as any)._id, status: "active" }).select("role").lean();
+        canViewMissionVideo = canManageOrg(platformRole, (membership as any)?.role);
+      }
     }
 
     // Increment view count (fire-and-forget)
@@ -42,8 +55,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       .limit(12)
       .lean();
 
+    const responseOrg = JSON.parse(JSON.stringify(org));
+    if (!canViewMissionVideo) {
+      delete responseOrg.missionVideoId;
+    }
+
     return NextResponse.json({
-      org:      JSON.parse(JSON.stringify(org)),
+      org:      responseOrg,
       members:  JSON.parse(JSON.stringify(members)),
       projects: JSON.parse(JSON.stringify(projects)),
     });
@@ -79,6 +97,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ slug: 
     }
 
     const body = await req.json();
+    const missionVideoInput = typeof body.missionVideoUrl === "string"
+      ? body.missionVideoUrl
+      : typeof body.missionVideoId === "string"
+        ? body.missionVideoId
+        : undefined;
+
     const ALLOWED_FIELDS = [
       "name", "description", "tagline", "charter", "roadmap",
       "website", "email", "socialLinks", "logo", "bannerImage",
@@ -87,12 +111,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ slug: 
       "votingRightsRule", "portfolioEnabled",
     ];
 
-    const update: Record<string, any> = {};
+    const setUpdate: Record<string, any> = {};
+    const unsetUpdate: Record<string, any> = {};
     for (const field of ALLOWED_FIELDS) {
-      if (body[field] !== undefined) update[field] = body[field];
+      if (body[field] !== undefined) setUpdate[field] = body[field];
     }
 
-    const updated = await Org.findByIdAndUpdate(org._id, { $set: update }, { new: true, runValidators: true }).lean();
+    if (body.missionVideoUrl !== undefined || body.missionVideoId !== undefined) {
+      const rawInput = typeof missionVideoInput === "string" ? missionVideoInput.trim() : "";
+      if (!rawInput) {
+        unsetUpdate.missionVideoId = 1;
+      } else {
+        const missionVideoId = extractYouTubeVideoId(rawInput);
+        if (!missionVideoId) {
+          return NextResponse.json({ message: "Invalid YouTube URL" }, { status: 400 });
+        }
+        setUpdate.missionVideoId = missionVideoId;
+      }
+    }
+
+    const update: Record<string, any> = {};
+    if (Object.keys(setUpdate).length) update.$set = setUpdate;
+    if (Object.keys(unsetUpdate).length) update.$unset = unsetUpdate;
+
+    if (!Object.keys(update).length) {
+      return NextResponse.json(JSON.parse(JSON.stringify(org)));
+    }
+
+    const updated = await Org.findByIdAndUpdate(org._id, update, { new: true, runValidators: true }).lean();
 
     return NextResponse.json(JSON.parse(JSON.stringify(updated)));
   } catch (error: any) {

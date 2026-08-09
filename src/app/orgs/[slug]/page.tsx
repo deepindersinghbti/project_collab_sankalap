@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
-  Users, FolderOpen, Shield, Clock, Globe, Github,
-  Twitter, Linkedin, Mail, ArrowRight, Loader2,
-  AlertCircle, Edit2, LayoutDashboard, Settings, UserPlus
+  Users, FolderOpen, Shield, Loader2,
+  AlertCircle, Edit2, LayoutDashboard
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useOrg } from "@/context/OrgContext";
@@ -15,8 +14,8 @@ import TrustScoreCard from "@/components/org/TrustScoreCard";
 import MemberGrid from "@/components/org/MemberGrid";
 import JoinButton from "@/components/org/JoinButton";
 import OrgPortfolioRenderer from "@/components/portfolio/OrgPortfolioRenderer";
-import { canManageOrg } from "@/lib/org-permissions";
 import AppLayoutClient from "@/components/layout/AppLayoutClient";
+import { buildYouTubeEmbedUrl } from "@/lib/youtube";
 
 export default function OrgPage() {
   const { slug } = useParams() as { slug: string };
@@ -140,7 +139,7 @@ export default function OrgPage() {
               </a>
               <a
                 href={`/orgs/${slug}/admin/portfolio`}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-primary to-primary-hover dark:from-indigo-500 dark:to-purple-500 text-primary-foreground dark:text-white font-semibold text-xs transition-all hover:brightness-110 shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-linear-to-r from-primary to-primary-hover dark:from-indigo-500 dark:to-purple-500 text-primary-foreground dark:text-white font-semibold text-xs transition-all hover:brightness-110 shadow-sm"
               >
                 <Edit2 size={12} /> Design Page
               </a>
@@ -178,7 +177,7 @@ export default function OrgPage() {
             >
               <div className="pointer-events-none absolute -top-16 -right-16 w-40 h-40 rounded-full bg-gradient-to-br from-primary/10 to-tertiary/10 dark:from-indigo-500/10 dark:to-purple-500/10 blur-2xl" />
               <h2 className="relative text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
-                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-tertiary dark:from-indigo-400 dark:to-purple-400">
+                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-linear-to-br from-primary to-tertiary dark:from-indigo-400 dark:to-purple-400">
                   <Shield size={14} className="text-white" />
                 </span>
                 Our Mission
@@ -188,6 +187,36 @@ export default function OrgPage() {
               </p>
             </motion.section>
 
+            {isAdmin && org.missionVideoId && (
+              <motion.section
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="relative overflow-hidden p-6 rounded-2xl border border-border bg-card dark:bg-white/5 backdrop-blur-sm space-y-4"
+              >
+                <div className="pointer-events-none absolute -top-16 -right-16 w-40 h-40 rounded-full bg-linear-to-br from-primary/10 to-tertiary/10 dark:from-indigo-500/10 dark:to-purple-500/10 blur-2xl" />
+                <div className="relative flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
+                    <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-linear-to-br from-primary to-tertiary dark:from-indigo-400 dark:to-purple-400">
+                      <LayoutDashboard size={14} className="text-white" />
+                    </span>
+                    Mission Video
+                  </h2>
+                </div>
+                <div className="relative overflow-hidden rounded-xl border border-border dark:border-white/8 bg-black/10" style={{ aspectRatio: "16 / 9" }}>
+                  <iframe
+                    title={`${org.name} mission video`}
+                    src={buildYouTubeEmbedUrl(org.missionVideoId)}
+                    className="absolute inset-0 h-full w-full"
+                    loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    referrerPolicy="strict-origin-when-cross-origin"
+                  />
+                </div>
+              </motion.section>
+            )}
+
             {/* Showcase Projects */}
             <motion.section
               initial={{ opacity: 0, y: 16 }}
@@ -195,10 +224,10 @@ export default function OrgPage() {
               viewport={{ once: true }}
               className="relative overflow-hidden p-6 rounded-2xl border border-border bg-card dark:bg-white/5 backdrop-blur-sm space-y-4"
             >
-              <div className="pointer-events-none absolute -top-16 -left-16 w-40 h-40 rounded-full bg-gradient-to-br from-tertiary/10 to-primary/10 dark:from-purple-500/10 dark:to-indigo-500/10 blur-2xl" />
+              <div className="pointer-events-none absolute -top-16 -left-16 w-40 h-40 rounded-full bg-linear-to-br from-tertiary/10 to-primary/10 dark:from-purple-500/10 dark:to-indigo-500/10 blur-2xl" />
               <div className="relative flex items-center justify-between">
                 <h2 className="text-lg font-bold text-foreground dark:text-white flex items-center gap-2">
-                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-tertiary dark:from-indigo-400 dark:to-purple-400">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-linear-to-br from-primary to-tertiary dark:from-indigo-400 dark:to-purple-400">
                     <FolderOpen size={14} className="text-white" />
                   </span>
                   Projects Showcase
